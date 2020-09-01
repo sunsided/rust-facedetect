@@ -14,8 +14,7 @@ impl<'a> Window<'a> {
     }
 
     pub fn show_image(&self, frame: &Mat) -> Result<()> {
-        highgui::imshow(&self.name, &frame)?;
-        Ok(())
+        highgui::imshow(&self.name, &frame)
     }
 }
 
