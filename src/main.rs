@@ -4,12 +4,37 @@ use opencv::{highgui, imgproc, objdetect, prelude::*, types, videoio};
 
 type Result<T> = opencv::Result<T>;
 
+const WINDOW_NAME: &str = "OpenCV Face Detection in Rust";
+const CASCADE_XML_FILE: &str = "haarcascade_frontalface_alt.xml";
+
 const SCALE_FACTOR: f64 = 0.25f64;
 const SCALE_FACTOR_INV: i32 = (1f64 / SCALE_FACTOR) as i32;
 
+struct Window<'a> {
+    name: &'a str,
+}
+
+impl<'a> Window<'a> {
+    pub fn create(name: &'a str, width: i32, height: i32) -> Result<Self> {
+        highgui::named_window(name, highgui::WINDOW_GUI_NORMAL | highgui::WINDOW_KEEPRATIO)?;
+        highgui::resize_window(name, width, height)?;
+        Ok(Self { name })
+    }
+
+    pub fn show_image(&self, frame: &Mat) -> Result<()> {
+        highgui::imshow(&self.name, &frame)?;
+        Ok(())
+    }
+}
+
+impl<'a> Drop for Window<'a> {
+    fn drop(&mut self) {
+        let _ = highgui::destroy_window(self.name);
+    }
+}
+
 fn run() -> Result<()> {
-    let xml = "haarcascade_frontalface_alt.xml";
-    let mut classifier = objdetect::CascadeClassifier::new(&xml)?;
+    let mut classifier = objdetect::CascadeClassifier::new(CASCADE_XML_FILE)?;
 
     let mut capture = videoio::VideoCapture::new(0, videoio::CAP_ANY)?;
     capture.set(videoio::CAP_PROP_FRAME_WIDTH, 800f64)?;
@@ -20,17 +45,10 @@ fn run() -> Result<()> {
         panic!("Unable to open default camera!");
     }
 
-    let window_name = "OpenCV Face Detection in Rust";
-    highgui::named_window(
-        window_name,
-        highgui::WINDOW_GUI_NORMAL | highgui::WINDOW_KEEPRATIO,
-    )?;
+    let window = Window::create(WINDOW_NAME, 800, 600)?;
 
-    highgui::resize_window(window_name, 800, 600)?;
+    run_main_loop(&mut capture, &mut classifier, &window)?;
 
-    run_main_loop(&mut capture, &mut classifier, window_name)?;
-
-    highgui::destroy_window(window_name)?;
     capture.release()?;
     Ok(())
 }
@@ -38,7 +56,7 @@ fn run() -> Result<()> {
 fn run_main_loop(
     mut capture: &mut videoio::VideoCapture,
     mut classifier: &mut objdetect::CascadeClassifier,
-    window_name: &str,
+    window: &Window,
 ) -> Result<()> {
     loop {
         const KEY_CODE_ESCAPE: i32 = 27;
@@ -57,7 +75,7 @@ fn run_main_loop(
             draw_box_around_face(&mut frame, face)?;
         }
 
-        highgui::imshow(window_name, &frame)?;
+        window.show_image(&frame)?;
     }
 }
 
