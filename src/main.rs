@@ -27,69 +27,20 @@ fn run() -> opencv::Result<()> {
     highgui::resize_window(window_name, 800, 600)?;
 
     loop {
-        if let Ok(27) = highgui::wait_key(10) {
+        const KEY_CODE_ESCAPE: i32 = 27;
+        if let Ok(KEY_CODE_ESCAPE) = highgui::wait_key(10) {
             break;
         }
 
-        if !capture.grab()? {
-            continue;
-        }
+        let mut frame = match grab_frame(&mut capture)? {
+            Some(frame) => frame,
+            None => continue,
+        };
 
-        let mut frame = Mat::default()?;
-        capture.retrieve(&mut frame, 0)?;
-
-        let mut gray = Mat::default()?;
-        imgproc::cvt_color(&frame, &mut gray, imgproc::COLOR_BGR2GRAY, 0)?;
-
-        let mut reduced = Mat::default()?;
-        imgproc::resize(
-            &gray,
-            &mut reduced,
-            Size {
-                width: 0,
-                height: 0,
-            },
-            SCALE_FACTOR,
-            SCALE_FACTOR,
-            imgproc::INTER_LINEAR,
-        )?;
-
-        let mut equalized = Mat::default()?;
-        imgproc::equalize_hist(&reduced, &mut equalized)?;
-
-        let mut faces = types::VectorOfRect::new();
-        classifier.detect_multi_scale(
-            &equalized,
-            &mut faces,
-            1.1,
-            2,
-            0,
-            Size {
-                width: 30,
-                height: 30,
-            },
-            Size {
-                width: 0,
-                height: 0,
-            },
-        )?;
-
+        let mut preprocessed = preprocess_image(&mut frame)?;
+        let faces = detect_faces(&mut classifier, &mut preprocessed)?;
         for face in faces {
-            println!("face {:?}", face);
-            let scaled_face = Rect {
-                x: face.x * SCALE_FACTOR_INV,
-                y: face.y * SCALE_FACTOR_INV,
-                width: face.width * SCALE_FACTOR_INV,
-                height: face.height * SCALE_FACTOR_INV,
-            };
-            imgproc::rectangle(
-                &mut frame,
-                scaled_face,
-                Scalar::new(0f64, 0f64, 255f64, -1f64),
-                2,
-                8,
-                0,
-            )?;
+            draw_box_around_face(&mut frame, face)?;
         }
 
         highgui::imshow(window_name, &frame)?;
@@ -97,6 +48,86 @@ fn run() -> opencv::Result<()> {
 
     highgui::destroy_window(window_name)?;
     capture.release()?;
+    Ok(())
+}
+
+fn grab_frame(capture: &mut videoio::VideoCapture) -> opencv::Result<Option<Mat>> {
+    if !capture.grab()? {
+        return Ok(None);
+    }
+
+    let mut frame = Mat::default()?;
+    capture.retrieve(&mut frame, 0)?;
+    Ok(Some(frame))
+}
+
+fn preprocess_image(frame: &mut Mat) -> opencv::Result<Mat> {
+    let mut gray = Mat::default()?;
+    imgproc::cvt_color(frame, &mut gray, imgproc::COLOR_BGR2GRAY, 0)?;
+
+    let mut reduced = Mat::default()?;
+    imgproc::resize(
+        &gray,
+        &mut reduced,
+        Size {
+            width: 0,
+            height: 0,
+        },
+        SCALE_FACTOR,
+        SCALE_FACTOR,
+        imgproc::INTER_LINEAR,
+    )?;
+
+    let mut equalized = Mat::default()?;
+    imgproc::equalize_hist(&reduced, &mut equalized)?;
+
+    Ok(equalized)
+}
+
+fn detect_faces(
+    classifier: &mut objdetect::CascadeClassifier,
+    image: &mut Mat,
+) -> opencv::Result<types::VectorOfRect> {
+    const SCALE_FACTOR: f64 = 1.1;
+    const MIN_NEIGHBORS: i32 = 2;
+    const FLAGS: i32 = 0;
+    const MIN_FACE_SIZE: Size = Size {
+        width: 30,
+        height: 30,
+    };
+    const MAX_FACE_SIZE: Size = Size {
+        width: 0,
+        height: 0,
+    };
+
+    let mut faces = types::VectorOfRect::new();
+    classifier.detect_multi_scale(
+        image,
+        &mut faces,
+        SCALE_FACTOR,
+        MIN_NEIGHBORS,
+        FLAGS,
+        MIN_FACE_SIZE,
+        MAX_FACE_SIZE,
+    )?;
+    Ok(faces)
+}
+
+fn draw_box_around_face(frame: &mut Mat, face: Rect) -> opencv::Result<()> {
+    println!("found face {:?}", face);
+    let scaled_face = Rect {
+        x: face.x * SCALE_FACTOR_INV,
+        y: face.y * SCALE_FACTOR_INV,
+        width: face.width * SCALE_FACTOR_INV,
+        height: face.height * SCALE_FACTOR_INV,
+    };
+
+    const THICKNESS: i32 = 2;
+    const LINE_TYPE: i32 = 8;
+    const SHIFT: i32 = 0;
+    let color_red = Scalar::new(0f64, 0f64, 255f64, -1f64);
+
+    imgproc::rectangle(frame, scaled_face, color_red, THICKNESS, LINE_TYPE, SHIFT)?;
     Ok(())
 }
 
