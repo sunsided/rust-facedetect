@@ -50,8 +50,8 @@ fn run_main_loop(
             None => continue,
         };
 
-        let mut preprocessed = preprocess_image(&mut frame)?;
-        let faces = detect_faces(classifier, &mut preprocessed)?;
+        let preprocessed = preprocess_image(&frame)?;
+        let faces = detect_faces(classifier, &preprocessed)?;
         for face in faces {
             draw_box_around_face(&mut frame, face)?;
         }
@@ -60,7 +60,7 @@ fn run_main_loop(
     }
 }
 
-fn preprocess_image(frame: &mut Mat) -> Result<Mat> {
+fn preprocess_image(frame: &Mat) -> Result<Mat> {
     let mut gray = Mat::default()?;
     imgproc::cvt_color(frame, &mut gray, imgproc::COLOR_BGR2GRAY, 0)?;
 
@@ -85,7 +85,7 @@ fn preprocess_image(frame: &mut Mat) -> Result<Mat> {
 
 fn detect_faces(
     classifier: &mut objdetect::CascadeClassifier,
-    image: &mut Mat,
+    image: &Mat,
 ) -> Result<types::VectorOfRect> {
     const SCALE_FACTOR: f64 = 1.1;
     const MIN_NEIGHBORS: i32 = 2;
