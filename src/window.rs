@@ -2,15 +2,17 @@ use opencv::{highgui, prelude::*};
 
 type Result<T> = opencv::Result<T>;
 
-pub(crate) struct Window<'a> {
-    name: &'a str,
+pub(crate) struct Window {
+    name: String,
 }
 
-impl<'a> Window<'a> {
-    pub fn create(name: &'a str, width: i32, height: i32) -> Result<Self> {
+impl Window {
+    pub fn create(name: &'_ str, width: i32, height: i32) -> Result<Self> {
         highgui::named_window(name, highgui::WINDOW_GUI_NORMAL | highgui::WINDOW_KEEPRATIO)?;
         highgui::resize_window(name, width, height)?;
-        Ok(Self { name })
+        Ok(Self {
+            name: name.to_owned(),
+        })
     }
 
     pub fn show_image(&self, frame: &Mat) -> Result<()> {
@@ -18,8 +20,8 @@ impl<'a> Window<'a> {
     }
 }
 
-impl<'a> Drop for Window<'a> {
+impl Drop for Window {
     fn drop(&mut self) {
-        let _ = highgui::destroy_window(self.name);
+        let _ = highgui::destroy_window(&self.name);
     }
 }
