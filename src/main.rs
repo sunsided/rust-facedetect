@@ -51,7 +51,7 @@ fn run_main_loop(
         };
 
         let preprocessed = preprocess_image(&frame)?;
-        let faces = detect_faces(classifier, &preprocessed)?;
+        let faces = detect_faces(classifier, preprocessed)?;
         for face in faces {
             draw_box_around_face(&mut frame, face)?;
         }
@@ -61,31 +61,44 @@ fn run_main_loop(
 }
 
 fn preprocess_image(frame: &Mat) -> Result<Mat> {
+    let gray = convert_to_grayscale(frame)?;
+    let reduced = reduce_image_size(&gray, SCALE_FACTOR)?;
+    equalize_image(&reduced)
+}
+
+fn convert_to_grayscale(frame: &Mat) -> Result<Mat> {
     let mut gray = Mat::default()?;
     imgproc::cvt_color(frame, &mut gray, imgproc::COLOR_BGR2GRAY, 0)?;
+    Ok(gray)
+}
 
+fn reduce_image_size(gray: &Mat, factor: f64) -> Result<Mat> {
+    // Destination size is determined by scaling `factor`, not by target size.
+    const SIZE_AUTO: Size = Size {
+        width: 0,
+        height: 0,
+    };
     let mut reduced = Mat::default()?;
     imgproc::resize(
-        &gray,
+        gray,
         &mut reduced,
-        Size {
-            width: 0,
-            height: 0,
-        },
-        SCALE_FACTOR,
-        SCALE_FACTOR,
+        SIZE_AUTO,
+        factor, // fx
+        factor, // fy
         imgproc::INTER_LINEAR,
     )?;
+    Ok(reduced)
+}
 
+fn equalize_image(reduced: &Mat) -> Result<Mat> {
     let mut equalized = Mat::default()?;
-    imgproc::equalize_hist(&reduced, &mut equalized)?;
-
+    imgproc::equalize_hist(reduced, &mut equalized)?;
     Ok(equalized)
 }
 
 fn detect_faces(
     classifier: &mut objdetect::CascadeClassifier,
-    image: &Mat,
+    image: Mat,
 ) -> Result<types::VectorOfRect> {
     const SCALE_FACTOR: f64 = 1.1;
     const MIN_NEIGHBORS: i32 = 2;
@@ -101,7 +114,7 @@ fn detect_faces(
 
     let mut faces = types::VectorOfRect::new();
     classifier.detect_multi_scale(
-        image,
+        &image,
         &mut faces,
         SCALE_FACTOR,
         MIN_NEIGHBORS,
