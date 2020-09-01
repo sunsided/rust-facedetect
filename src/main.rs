@@ -2,10 +2,12 @@ extern crate opencv;
 use opencv::core::{Rect, Scalar, Size};
 use opencv::{highgui, imgproc, objdetect, prelude::*, types, videoio};
 
+type Result<T> = opencv::Result<T>;
+
 const SCALE_FACTOR: f64 = 0.25f64;
 const SCALE_FACTOR_INV: i32 = (1f64 / SCALE_FACTOR) as i32;
 
-fn run() -> opencv::Result<()> {
+fn run() -> Result<()> {
     let xml = "haarcascade_frontalface_alt.xml";
     let mut classifier = objdetect::CascadeClassifier::new(&xml)?;
 
@@ -26,10 +28,22 @@ fn run() -> opencv::Result<()> {
 
     highgui::resize_window(window_name, 800, 600)?;
 
+    run_main_loop(&mut capture, &mut classifier, window_name)?;
+
+    highgui::destroy_window(window_name)?;
+    capture.release()?;
+    Ok(())
+}
+
+fn run_main_loop(
+    mut capture: &mut videoio::VideoCapture,
+    mut classifier: &mut objdetect::CascadeClassifier,
+    window_name: &str,
+) -> Result<()> {
     loop {
         const KEY_CODE_ESCAPE: i32 = 27;
         if let Ok(KEY_CODE_ESCAPE) = highgui::wait_key(10) {
-            break;
+            return Ok(());
         }
 
         let mut frame = match grab_frame(&mut capture)? {
@@ -45,13 +59,9 @@ fn run() -> opencv::Result<()> {
 
         highgui::imshow(window_name, &frame)?;
     }
-
-    highgui::destroy_window(window_name)?;
-    capture.release()?;
-    Ok(())
 }
 
-fn grab_frame(capture: &mut videoio::VideoCapture) -> opencv::Result<Option<Mat>> {
+fn grab_frame(capture: &mut videoio::VideoCapture) -> Result<Option<Mat>> {
     if !capture.grab()? {
         return Ok(None);
     }
@@ -61,7 +71,7 @@ fn grab_frame(capture: &mut videoio::VideoCapture) -> opencv::Result<Option<Mat>
     Ok(Some(frame))
 }
 
-fn preprocess_image(frame: &mut Mat) -> opencv::Result<Mat> {
+fn preprocess_image(frame: &mut Mat) -> Result<Mat> {
     let mut gray = Mat::default()?;
     imgproc::cvt_color(frame, &mut gray, imgproc::COLOR_BGR2GRAY, 0)?;
 
@@ -87,7 +97,7 @@ fn preprocess_image(frame: &mut Mat) -> opencv::Result<Mat> {
 fn detect_faces(
     classifier: &mut objdetect::CascadeClassifier,
     image: &mut Mat,
-) -> opencv::Result<types::VectorOfRect> {
+) -> Result<types::VectorOfRect> {
     const SCALE_FACTOR: f64 = 1.1;
     const MIN_NEIGHBORS: i32 = 2;
     const FLAGS: i32 = 0;
@@ -113,7 +123,7 @@ fn detect_faces(
     Ok(faces)
 }
 
-fn draw_box_around_face(frame: &mut Mat, face: Rect) -> opencv::Result<()> {
+fn draw_box_around_face(frame: &mut Mat, face: Rect) -> Result<()> {
     println!("found face {:?}", face);
     let scaled_face = Rect {
         x: face.x * SCALE_FACTOR_INV,
