@@ -1,14 +1,19 @@
+mod capture;
 mod window;
 
 extern crate opencv;
+use crate::capture::Capture;
+use crate::window::Window;
 use opencv::core::{Rect, Scalar, Size};
-use opencv::{highgui, imgproc, objdetect, prelude::*, types, videoio};
-use window::Window;
+use opencv::{highgui, imgproc, objdetect, prelude::*, types};
 
 type Result<T> = opencv::Result<T>;
 
 const WINDOW_NAME: &str = "OpenCV Face Detection in Rust";
 const CASCADE_XML_FILE: &str = "haarcascade_frontalface_alt.xml";
+
+const CAPTURE_WIDTH: i32 = 800;
+const CAPTURE_HEIGHT: i32 = 600;
 
 const SCALE_FACTOR: f64 = 0.25f64;
 const SCALE_FACTOR_INV: i32 = (1f64 / SCALE_FACTOR) as i32;
@@ -16,26 +21,22 @@ const SCALE_FACTOR_INV: i32 = (1f64 / SCALE_FACTOR) as i32;
 fn run() -> Result<()> {
     let mut classifier = objdetect::CascadeClassifier::new(CASCADE_XML_FILE)?;
 
-    let mut capture = videoio::VideoCapture::new(0, videoio::CAP_ANY)?;
-    capture.set(videoio::CAP_PROP_FRAME_WIDTH, 800f64)?;
-    capture.set(videoio::CAP_PROP_FRAME_HEIGHT, 600f64)?;
-
-    let opened = videoio::VideoCapture::is_opened(&capture)?;
+    let mut capture = Capture::create_default(CAPTURE_WIDTH, CAPTURE_HEIGHT)?;
+    let opened = capture.is_opened()?;
     if !opened {
         panic!("Unable to open default camera!");
     }
 
-    let window = Window::create(WINDOW_NAME, 800, 600)?;
+    let window = Window::create(WINDOW_NAME, CAPTURE_WIDTH, CAPTURE_HEIGHT)?;
 
     run_main_loop(&mut capture, &mut classifier, &window)?;
 
-    capture.release()?;
     Ok(())
 }
 
 fn run_main_loop(
-    mut capture: &mut videoio::VideoCapture,
-    mut classifier: &mut objdetect::CascadeClassifier,
+    capture: &mut Capture,
+    classifier: &mut objdetect::CascadeClassifier,
     window: &Window,
 ) -> Result<()> {
     loop {
@@ -44,29 +45,19 @@ fn run_main_loop(
             return Ok(());
         }
 
-        let mut frame = match grab_frame(&mut capture)? {
+        let mut frame = match capture.grab_frame()? {
             Some(frame) => frame,
             None => continue,
         };
 
         let mut preprocessed = preprocess_image(&mut frame)?;
-        let faces = detect_faces(&mut classifier, &mut preprocessed)?;
+        let faces = detect_faces(classifier, &mut preprocessed)?;
         for face in faces {
             draw_box_around_face(&mut frame, face)?;
         }
 
         window.show_image(&frame)?;
     }
-}
-
-fn grab_frame(capture: &mut videoio::VideoCapture) -> Result<Option<Mat>> {
-    if !capture.grab()? {
-        return Ok(None);
-    }
-
-    let mut frame = Mat::default()?;
-    capture.retrieve(&mut frame, 0)?;
-    Ok(Some(frame))
 }
 
 fn preprocess_image(frame: &mut Mat) -> Result<Mat> {
