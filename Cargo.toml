@@ -1,0 +1,7 @@
+[package]
+name = "facedetect"
+version = "0.1.0"
+authors = ["Markus Mayer <my@email.address>"]
+
+[dependencies]
+opencv = {version = "0.45", features = ["opencv-4", "buildtime-bindgen", "clang-runtime"]}
