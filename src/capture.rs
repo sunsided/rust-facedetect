@@ -27,7 +27,7 @@ impl Capture {
             return Ok(None);
         }
 
-        let mut frame = Mat::default()?;
+        let mut frame = Mat::default();
         self.capture.retrieve(&mut frame, 0)?;
         Ok(Some(frame))
     }
