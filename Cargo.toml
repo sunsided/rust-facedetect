@@ -1,7 +1,8 @@
 [package]
 name = "facedetect"
 version = "0.1.0"
+edition = "2021"
 authors = ["Markus Mayer <my@email.address>"]
 
 [dependencies]
-opencv = "0.88"
+opencv = "0.94.1"

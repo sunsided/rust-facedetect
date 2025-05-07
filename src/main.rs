@@ -1,11 +1,21 @@
 mod capture;
 mod window;
 
-extern crate opencv;
 use crate::capture::Capture;
 use crate::window::Window;
-use opencv::core::{Rect, Scalar, Size};
-use opencv::{highgui, imgproc, objdetect, prelude::*, types};
+use opencv::{
+    core::{
+        Rect,
+        Scalar,
+        Size,
+        Vector,
+        AlgorithmHint::ALGO_HINT_DEFAULT,
+    },
+    highgui,
+    imgproc,
+    objdetect,
+    prelude::*
+};
 
 type Result<T> = opencv::Result<T>;
 
@@ -18,7 +28,11 @@ const DEFAULT_CAPTURE_HEIGHT: i32 = 600;
 const SCALE_FACTOR: f64 = 0.25f64;
 const SCALE_FACTOR_INV: i32 = (1f64 / SCALE_FACTOR) as i32;
 
-fn run() -> Result<()> {
+fn try_run() -> Result<()> {
+    if !std::path::Path::new(CASCADE_XML_FILE).exists() {
+        panic!("Cascade file not found at: {}", CASCADE_XML_FILE);
+    }
+
     let mut classifier = objdetect::CascadeClassifier::new(CASCADE_XML_FILE)?;
 
     // Select capture width.
@@ -100,6 +114,7 @@ fn run_main_loop(
 ) -> Result<()> {
     loop {
         const KEY_CODE_ESCAPE: i32 = 27;
+
         if let Ok(KEY_CODE_ESCAPE) = highgui::wait_key(10) {
             return Ok(());
         }
@@ -127,7 +142,7 @@ fn preprocess_image(frame: &Mat) -> Result<Mat> {
 
 fn convert_to_grayscale(frame: &Mat) -> Result<Mat> {
     let mut gray = Mat::default();
-    imgproc::cvt_color(frame, &mut gray, imgproc::COLOR_BGR2GRAY, 0)?;
+    imgproc::cvt_color(frame, &mut gray, imgproc::COLOR_BGR2GRAY, 0, ALGO_HINT_DEFAULT)?;
     Ok(gray)
 }
 
@@ -137,6 +152,7 @@ fn reduce_image_size(gray: &Mat, factor: f64) -> Result<Mat> {
         width: 0,
         height: 0,
     };
+
     let mut reduced = Mat::default();
     imgproc::resize(
         gray,
@@ -146,6 +162,7 @@ fn reduce_image_size(gray: &Mat, factor: f64) -> Result<Mat> {
         factor, // fy
         imgproc::INTER_LINEAR,
     )?;
+
     Ok(reduced)
 }
 
@@ -155,10 +172,7 @@ fn equalize_image(reduced: &Mat) -> Result<Mat> {
     Ok(equalized)
 }
 
-fn detect_faces(
-    classifier: &mut objdetect::CascadeClassifier,
-    image: Mat,
-) -> Result<types::VectorOfRect> {
+fn detect_faces(classifier: &mut objdetect::CascadeClassifier, image: Mat) -> Result<Vector<Rect>> {
     const SCALE_FACTOR: f64 = 1.1;
     const MIN_NEIGHBORS: i32 = 2;
     const FLAGS: i32 = 0;
@@ -171,7 +185,8 @@ fn detect_faces(
         height: 0,
     };
 
-    let mut faces = types::VectorOfRect::new();
+    let mut faces = Vector::<Rect>::new();
+
     classifier.detect_multi_scale(
         &image,
         &mut faces,
@@ -181,11 +196,13 @@ fn detect_faces(
         MIN_FACE_SIZE,
         MAX_FACE_SIZE,
     )?;
+
     Ok(faces)
 }
 
 fn draw_box_around_face(frame: &mut Mat, face: Rect) -> Result<()> {
     println!("found face {:?}", face);
+
     let scaled_face = Rect {
         x: face.x * SCALE_FACTOR_INV,
         y: face.y * SCALE_FACTOR_INV,
@@ -199,9 +216,12 @@ fn draw_box_around_face(frame: &mut Mat, face: Rect) -> Result<()> {
     let color_red = Scalar::new(0f64, 0f64, 255f64, -1f64);
 
     imgproc::rectangle(frame, scaled_face, color_red, THICKNESS, LINE_TYPE, SHIFT)?;
+
     Ok(())
 }
 
-fn main() {
-    run().unwrap()
+fn main() -> Result<()> {
+    try_run()?;
+
+    Ok(())
 }
